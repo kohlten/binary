@@ -119,14 +119,14 @@ unittest
 	writeln("Power done");
 }
 
-long convToDecimal(BaseNumber num, int base = 2)
+V convToDecimal(V)(BaseNumber num, int base = 2)
 {
-	static long outNum;
+	static V outNum;
 	static i = 0;
 
 	if (i == num.num.length)
 	{
-		long tmp = outNum;
+		V tmp = outNum;
 		outNum = 0;
 		i = 0;
 		return tmp;
@@ -134,7 +134,7 @@ long convToDecimal(BaseNumber num, int base = 2)
 	outNum += (num.num[i] * power(base, num.bits));
 	num.bits--;
 	i++;
-	return convToDecimal(num, base);
+	return convToDecimal!V(num, base);
 }
 
 unittest
@@ -142,16 +142,16 @@ unittest
 	import std.random : uniform;
 	writeln("Convertion to decimal!");
 
-	assert(convToDecimal(BaseNumber([1, 0, 1, 0, 1, 0], 5, 101010)) == 42);
+	assert(convToDecimal!ulong(BaseNumber([1, 0, 1, 0, 1, 0], 5, 101010)) == 42);
 	foreach (i; 0 .. 500)
 	{
 		int num = uniform(0, 1000000);
-		assert(convToDecimal(convToBase(num)) == num);
+		assert(convToDecimal!ulong(convToBase(num)) == num);
 	}
 	writeln("Done decimal");
 }
 
-long or(T)(T a, T b)
+V or(T, V = ulong)(T a, T b)
 {
 	BaseNumber output;
 	BaseNumber num1;
@@ -175,7 +175,7 @@ long or(T)(T a, T b)
 		else
 			output.num ~= 0;
 	}
-	return convToDecimal(output);
+	return convToDecimal!V(output);
 }
 
 unittest
@@ -191,7 +191,7 @@ unittest
 	writeln("Or done");
 }
 
-long and(T)(T a, T b)
+V and(T, V = ulong)(T a, T b)
 {
 	BaseNumber output;
 	BaseNumber num1;
@@ -215,7 +215,7 @@ long and(T)(T a, T b)
 		else
 			output.num ~= 0;
 	}
-	return convToDecimal(output);
+	return convToDecimal!V(output);
 }
 
 unittest
@@ -231,7 +231,7 @@ unittest
 	writeln("and done");
 }
 
-long xor(T)(T a, T b)
+V xor(T, V = ulong)(T a, T b)
 {
 	BaseNumber output;
 	BaseNumber num1;
@@ -261,7 +261,7 @@ long xor(T)(T a, T b)
 		else
 			output.num ~= 0;
 	}
-	return convToDecimal(output);
+	return convToDecimal!V(output);
 }
 
 unittest
@@ -277,24 +277,16 @@ unittest
 	writeln("Xor done");
 }
 
-V not(T, V = long)(T a)
+BaseNumber not(T)(T a)
 {
 	BaseNumber output;
-	static if (!is(a : BaseNumber))
-	{
-		V = T;
+	static if (!is(typeof(a) : BaseNumber))
 		output = convToBase(a);
-	}
 	else
 		output = a;
-	writeln("Before: ", output.toString());
 	foreach (i; 0 .. output.num.length)
-	{
-		writeln(cast(int)!output.num[i], " ", output.num[i]);
 		output.num[i] = cast(int)!output.num[i];
-	}
-	writeln("After: ", output.toString());
-	return convToDecimal(output);
+	return output;
 }
 
 unittest
@@ -304,8 +296,80 @@ unittest
 	foreach (i; 0 .. 10)
 	{
 		uint num1 = uniform(1, 10);
-		writeln("Awnser: ", not(not(num1)), " Original: ", num1);
-		assert(not(not(num1)) == num1);
+		assert(convToDecimal!ulong(not(not(num1))) == num1);
 	}
 	writeln("Not done");
+}
+
+V shift(T, V = ulong)(T a, int times, char dir)
+{
+	BaseNumber output;
+	V tmp;
+	static if (!is(typeof(a) : BaseNumber))
+		output = convToBase(a);
+	else
+		output = a;
+	foreach (i; 0 .. times)
+	{
+		if (dir == 'l')
+		{
+			output.num ~= 0;
+			output.bits++;
+		}
+		else if (dir == 'r')
+		{
+			if (output.num.length > 1)
+				output.num.length--;
+			else
+			{
+				output.num[0] = 0;
+				break;
+			}
+			output.bits--;
+		}
+	}
+	return convToDecimal!V(output);
+}
+
+V leftshift(T, V = ulong)(T a, int times)
+{
+	return shift!(T, V)(a, times, 'l');
+}
+
+V rightshift(T, V = ulong)(T a, int times)
+{
+	return shift!(T, V)(a, times, 'r');
+}
+
+//Add unitests for shift
+
+T add(T)(T x, T y)
+{
+	T sum;
+	T carry;
+
+	sum = xor!(T, T)(x, y);
+	carry = and!(T, T)(x, y);
+	while (carry != 0)
+	{
+		carry = leftshift!(T, T)(carry, 1);
+		x = sum;
+		y = carry;
+		sum = xor!(T, T)(x, y);
+		carry = and!(T, T)(x, y);
+	}
+	return sum;
+}
+
+unittest
+{
+	import std.random : uniform;
+	writeln("add test");
+	foreach (i; 0 .. 100)
+	{
+		int a = uniform(1, 1000000);
+		int b = uniform(1, 1000000);
+		assert(add(a, b) == (a + b));
+	}
+	writeln("add done");
 }
